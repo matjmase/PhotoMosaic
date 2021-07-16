@@ -1,0 +1,164 @@
+﻿<Window x:Class="PhotoMosaic.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PhotoMosaic" xmlns:i="http://schemas.microsoft.com/xaml/behaviors" xmlns:behav="clr-namespace:PhotoMosaic.Behaviors" xmlns:common="clr-namespace:PhotoMosaic.Common" xmlns:convert="clr-namespace:PhotoMosaic.Converters" d:DataContext="{d:DesignInstance Type=local:MainWindowVM}"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Window.Resources>
+        <convert:BoolToVisibilityConverter x:Key="boolToVis"/>
+        <convert:ComboBoxEnumConverter x:Key="comboEnum"/>
+    </Window.Resources>
+    <Window.DataContext>
+        <local:MainWindowVM/>
+    </Window.DataContext>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+
+        <GroupBox Grid.Row="0" Grid.Column="0" Header="Image Selection">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <Button Grid.Row="0" Command="{Binding GetImageBankCommand}">
+                    <Button.Content>
+                        <Grid>
+                            <Grid.ColumnDefinitions >
+                                <ColumnDefinition/>
+                                <ColumnDefinition/>
+                            </Grid.ColumnDefinitions>
+                            <Viewbox Grid.Column="0">
+                                <TextBlock Grid.Column="0" Text="✓" Visibility="{Binding BankImagePathsPopulated, Converter={StaticResource boolToVis}}" VerticalAlignment="Center" Foreground="Lime" />
+                            </Viewbox>
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Image Bank"/>
+                        </Grid>
+                    </Button.Content>
+                </Button>
+                <TextBlock Grid.Row="1" TextAlignment="Center" Text="filler">
+                    <i:Interaction.Behaviors>
+                        <behav:TextBlockFormatTextBehavior Before="Total Images: " Center="{Binding BankImagePaths.Count}" After="."/>
+                    </i:Interaction.Behaviors>
+                </TextBlock>
+
+                <Button Grid.Row="2" Command="{Binding GetRecreateImageCommand}">
+                    <Button.Content>
+                        <Grid>
+                            <Grid.ColumnDefinitions >
+                                <ColumnDefinition/>
+                                <ColumnDefinition/>
+                            </Grid.ColumnDefinitions>
+                            <Viewbox Grid.Column="0">
+                                <TextBlock Grid.Column="0" Text="✓" Visibility="{Binding RecreateImageChosen, Converter={StaticResource boolToVis}}" VerticalAlignment="Center" Foreground="Lime" />
+                            </Viewbox>
+                            <TextBlock Grid.Column="1" VerticalAlignment="Center" Text="Recreate Image"/>
+                        </Grid>
+                    </Button.Content>
+                </Button>
+
+                <TextBlock Grid.Row="3" TextAlignment="Center" Text="filler">
+                    <i:Interaction.Behaviors>
+                        <behav:TextBlockFormatTextBehavior Before="{Binding RecreateImageDimensions.Width}" Center=" x " After="{Binding RecreateImageDimensions.Height}"/>
+                    </i:Interaction.Behaviors>
+                </TextBlock>
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Header="Plot Dimensions" Grid.Row="1" Grid.Column="0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0" Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" Text="Sample Plot size (length of a side of a square in px)" TextWrapping="WrapWithOverflow"/>
+                <TextBox Grid.Column="1" Grid.Row="0" Text="1" TextAlignment="Center">
+                    <i:Interaction.Behaviors>
+                        <behav:NumericTextboxBehavior Min="1" Value="{Binding SamplePlotDimensions, Mode=TwoWay}" />
+                    </i:Interaction.Behaviors>
+                </TextBox>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Text="filler" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <i:Interaction.Behaviors>
+                        <behav:TextBlockFormatTextBehavior Before="Total plots: " Center="{Binding Totalplots}" After="."/>
+                    </i:Interaction.Behaviors>
+                </TextBlock>
+
+                <TextBlock Grid.Row="2" Grid.Column="0"  VerticalAlignment="Center" HorizontalAlignment="Center" TextAlignment="Center" Text="Replacement Image plot size in pixels" TextWrapping="WrapWithOverflow"/>
+                <TextBox Grid.Row="2" Grid.Column="1" TextAlignment="Center" Text="1">
+                    <i:Interaction.Behaviors>
+                        <behav:NumericTextboxBehavior Min="1" Value="{Binding ReplacementPlotDimensions, Mode=TwoWay}" />
+                    </i:Interaction.Behaviors>
+                </TextBox>
+
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Text="filler" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <i:Interaction.Behaviors>
+                        <behav:TextBlockFormatTextBehavior Before="Final Size: ~" Center="{Binding NewImageSizePercentage}" After="%"/>
+                    </i:Interaction.Behaviors>
+                </TextBlock>
+
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Grid.Row="0" Grid.Column="1" Header="Rendering Options">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Text="Square processing" TextWrapping="WrapWithOverflow"/>
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding PlotProcessing , Converter={StaticResource comboEnum}, ConverterParameter={x:Type common:PlotImageProcessing}}" SelectedItem="{Binding PlotProcessing}" />
+                </Grid>
+
+                <CheckBox Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding AdjustImageRGB}" Content="Adjust RGB of small photos"/>
+            </Grid>
+        </GroupBox>
+
+        <GroupBox Grid.Row="1" Grid.Column="1" Header="Output">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="50"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" FontSize="15" Text="FilePath: " VerticalAlignment="Center" HorizontalAlignment="Center" TextWrapping="WrapWithOverflow">
+                        <i:Interaction.Behaviors>
+                            <behav:TextBlockFormatTextBehavior Before="FilePath: " Center="{Binding OutputFilePath}" />
+                        </i:Interaction.Behaviors>
+                    </TextBlock>
+                    <Button Grid.Column="1" FontSize="25" Content="+" Command="{Binding SelectOutputFileCommand}"/>
+                </Grid>
+
+                <Button Grid.Row="1" ToolTip="{Binding ProcessToolTip}" IsEnabled="{Binding ProcessEnabled}" Content="Process" Command="{Binding ProcessFinalImageCommand}" FontSize="25" Background="LimeGreen" />
+            </Grid>
+        </GroupBox>
+    </Grid>
+</Window>

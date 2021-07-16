@@ -1,0 +1,95 @@
+﻿<Window x:Class="PhotoMosaic.Windows.ImageBankWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PhotoMosaic.Windows" xmlns:controls="clr-namespace:PhotoMosaic.Controls" xmlns:i="http://schemas.microsoft.com/xaml/behaviors" xmlns:behav="clr-namespace:PhotoMosaic.Behaviors" d:DataContext="{d:DesignInstance Type=local:ImageBankWindowVM}"
+        mc:Ignorable="d"
+        Title="ImageBankWindow" Height="450" Width="800">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="50"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="50"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" FontSize="25"  VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+                <i:Interaction.Behaviors>
+                    <behav:TextBlockFormatTextBehavior Before="Directory: " Center="{Binding CurrentDirectory}" />
+                </i:Interaction.Behaviors>
+            </TextBlock>
+            <Button Grid.Column="1" FontSize="25" Content="+" Command="{Binding SelectDirectoryCommand}"/>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="3"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition Height="50"/>
+            </Grid.RowDefinitions>
+
+            <ScrollViewer Grid.Row="0" Grid.Column="0">
+                <ItemsControl ItemsSource="{Binding CurrentFolderPaths}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <controls:SelectableImageControl Height="100" Width="100" DataContext="{Binding }" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch"/>
+
+            <ScrollViewer Grid.Row="0" Grid.Column="2">
+                <ItemsControl ItemsSource="{Binding AddedImagePaths}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <controls:SelectableImageControl Height="100" Width="100" DataContext="{Binding }" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <Grid Grid.Row="1" Grid.Column="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="Select All" Command="{Binding CurrentFolderPathsSelectAllCommand}"/>
+                <Button Grid.Column="1" Content="Deselect All" Command="{Binding CurrentFolderPathsDeselectAllCommand}"/>
+                <Button Grid.Column="2" Content="Add" Command="{Binding CurrentFolderPathsAddCommand}"/>
+            </Grid>
+            <Grid Grid.Row="1" Grid.Column="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition/>
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="0" Content="Select All" Command="{Binding AddedImagePathsSelectAllCommand}"/>
+                <Button Grid.Column="1" Content="Deselect All" Command="{Binding AddedImagePathsDeselectAllCommand}"/>
+                <Button Grid.Column="2" Content="Remove" Command="{Binding AddedImagePathsRemoveCommand}"/>
+            </Grid>
+        </Grid>
+        <Button Grid.Row="2" Background="Lime" Content="Proceed" Command="{Binding ProceedWithChangesCommand}"/>
+    </Grid>
+</Window>

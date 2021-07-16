@@ -1,0 +1,23 @@
+﻿<UserControl x:Class="PhotoMosaic.Controls.SelectableImageControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:PhotoMosaic.Controls" xmlns:i="http://schemas.microsoft.com/xaml/behaviors" xmlns:behav="clr-namespace:PhotoMosaic.Behaviors" xmlns:convert="clr-namespace:PhotoMosaic.Converters"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <convert:BoolToVisibilityConverter x:Key="boolToVis"/>
+    </UserControl.Resources>
+    <Grid>
+        <Image Source="{Binding SourceForImage}"/>
+        <Viewbox Visibility="{Binding Selected, Converter={StaticResource boolToVis}}" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+            <TextBlock Foreground="Lime" Text="✓"/>
+        </Viewbox>
+        <Rectangle Fill="Transparent" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <i:Interaction.Behaviors>
+                <behav:RectangleClickBehavior ClickCommand="{Binding ToggleSelectionCommand}" />
+            </i:Interaction.Behaviors>
+        </Rectangle>
+    </Grid>
+</UserControl>
