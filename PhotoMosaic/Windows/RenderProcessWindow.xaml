@@ -142,6 +142,7 @@
             <RowDefinition Height="25"/>
             <RowDefinition/>
             <RowDefinition/>
+            <RowDefinition/>
         </Grid.RowDefinitions>
         <TextBlock Grid.Row="0" Text="PreProcessing" FontSize="25" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <i:Interaction.Behaviors>
@@ -169,5 +170,7 @@
         <Viewbox Grid.Row="6">
             <Control Style="{StaticResource BusyAnimationStyle}"/>
         </Viewbox>
+
+        <Button Grid.Row="7" Command="{Binding CancelCommand}" Background="Red" Foreground="white" Content="Cancel" FontSize="20"/>
     </Grid>
 </Window>

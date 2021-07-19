@@ -117,25 +117,46 @@
             </Grid>
         </GroupBox>
 
-        <GroupBox Grid.Row="0" Grid.Column="1" Header="Rendering Options">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition/>
-                    <RowDefinition/>
-                </Grid.RowDefinitions>
+        <Grid Grid.Row="0" Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition/>
-                        <ColumnDefinition/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Text="Square processing" TextWrapping="WrapWithOverflow"/>
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding PlotProcessing , Converter={StaticResource comboEnum}, ConverterParameter={x:Type common:PlotImageProcessing}}" SelectedItem="{Binding PlotProcessing}" />
+            <GroupBox Grid.Row="0" Header="PreProcessing Options">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+
+                    <CheckBox Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding LoadThumbnails}" Content="Load thumbnails into Ram"/>
                 </Grid>
+            </GroupBox>
 
-                <CheckBox Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding AdjustImageRGB}" Content="Adjust RGB of small photos"/>
-            </Grid>
-        </GroupBox>
+
+            <GroupBox Grid.Row="1" Header="Rendering Options">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition/>
+                        <RowDefinition/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" Text="Square processing" TextWrapping="WrapWithOverflow"/>
+                        <ComboBox Grid.Column="1" ItemsSource="{Binding PlotProcessing , Converter={StaticResource comboEnum}, ConverterParameter={x:Type common:PlotImageProcessing}}" SelectedItem="{Binding PlotProcessing}" />
+                    </Grid>
+
+                    <CheckBox Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" IsChecked="{Binding AdjustImageRGB}" Content="Adjust RGB of small photos"/>
+                </Grid>
+            </GroupBox>
+
+        </Grid>
+        
+        
 
         <GroupBox Grid.Row="1" Grid.Column="1" Header="Output">
             <Grid>

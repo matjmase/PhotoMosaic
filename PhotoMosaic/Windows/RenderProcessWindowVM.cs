@@ -14,6 +14,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Input;
 
 namespace PhotoMosaic.Windows
 {
@@ -25,6 +26,9 @@ namespace PhotoMosaic.Windows
         private double _renderingPercentage;
         private TimeSpan _preProcessingRemainTime;
         private TimeSpan _renderingRemainTime;
+        private bool _processCanceled;
+        private bool _exceptionThrown;
+        private string _exceptionThrownMessage;
 
         public double PreProcessingPercentage
         {
@@ -78,6 +82,12 @@ namespace PhotoMosaic.Windows
             }
         }
 
+        public ICommand CancelCommand => new DelegateCommand((obj) => 
+        { 
+            _processCanceled = true;
+            FindAndCloseWindow();
+        });
+
         public RenderProcessWindowVM(RenderingModel model)
         {
             _model = model;
@@ -86,7 +96,15 @@ namespace PhotoMosaic.Windows
 
         private async void Render()
         {
-            await Task.Run(CompileFinalImage);
+            if (_model.Options.LoadThumbnails)
+                await Task.Run(CompileFinalImageLoadThumbnails);
+            else
+                await Task.Run(CompileFinalImage);
+            FindAndCloseWindow();
+        }
+
+        private void FindAndCloseWindow()
+        {
             foreach (Window window in Application.Current.Windows)
             {
                 if (object.ReferenceEquals(window.DataContext, this))
@@ -101,152 +119,262 @@ namespace PhotoMosaic.Windows
         {
             var preProcessed = PreProcess();
 
-            var finalReferenceLock = new object();
-            var outputBitmapLock = new object();
+            if (_processCanceled || _exceptionThrown)
+                return;
+
 
             var pool = new Semaphore(0, _maxThreads);
             var timer = new Stopwatch();
             timer.Start();
 
-            using (var initialReference = new Bitmap(_model.RecreateImage))
+            var finalReferenceLock = new object();
+            var outputBitmapLock = new object();
+
+            Bitmap initialReference = null;
+            Bitmap finalReference = null;
+            Bitmap outputBitmap = null;
+
+            try
             {
+
+                initialReference = new Bitmap(_model.RecreateImage);
                 var referenceDimensions = new ImageDimensions(initialReference.Height, initialReference.Width).RoundUp(_model.Options.SamplePlotSize);
 
-                using (var finalReference = ResizeBitmap(initialReference, referenceDimensions.Height, referenceDimensions.Width))
+                finalReference = ResizeBitmap(initialReference, referenceDimensions.Height, referenceDimensions.Width);
+                var widthPlots = referenceDimensions.Width / _model.Options.SamplePlotSize;
+                var heightPlots = referenceDimensions.Height / _model.Options.SamplePlotSize;
+
+                var totalPlots = widthPlots * heightPlots;
+                var progessCount = 1;
+
+                var finalWidth = widthPlots * _model.Options.FinalPlotSize;
+                var finalHeight = heightPlots * _model.Options.FinalPlotSize;
+
+                var tasks = new List<Task>();
+
+                outputBitmap = new Bitmap(finalWidth, finalHeight);
+                for (var i = 0; i < widthPlots; i++)
                 {
-                    var widthPlots = referenceDimensions.Width / _model.Options.SamplePlotSize;
-                    var heightPlots = referenceDimensions.Height / _model.Options.SamplePlotSize;
-
-                    var totalPlots = widthPlots * heightPlots;
-                    var progessCount = 1;
-
-                    var finalWidth = widthPlots * _model.Options.FinalPlotSize;
-                    var finalHeight = heightPlots * _model.Options.FinalPlotSize;
-
-                    var tasks = new List<Task>();
-
-                    using (var outputBitmap = new Bitmap(finalWidth, finalHeight))
+                    for (var j = 0; j < heightPlots; j++)
                     {
-                        for (var i = 0; i < widthPlots; i++)
+                        var ii = i;
+                        var jj = j;
+                        tasks.Add(Task.Run(() =>
                         {
-                            for (var j = 0; j < heightPlots; j++)
+                            pool.WaitOne();
+                            Bitmap thumbnail = null;
+
+                            try
                             {
-                                var ii = i;
-                                var jj = j;
-                                tasks.Add(Task.Run(() =>
+
+                                if (!(_processCanceled || _exceptionThrown))
                                 {
-                                    pool.WaitOne();
 
                                     var avgPixel = new ColorDouble();
-                                    var count = 0;
-                                    for (var x = 0; x < _model.Options.SamplePlotSize; x++)
+                                    lock (finalReferenceLock)
                                     {
-                                        for (var y = 0; y < _model.Options.SamplePlotSize; y++)
-                                        {
-                                            System.Drawing.Color pixel;
-
-                                            lock (finalReferenceLock)
-                                            {
-                                                pixel = finalReference.GetPixel(ii * _model.Options.SamplePlotSize + x, jj * _model.Options.SamplePlotSize + y);
-                                            }
-
-                                            avgPixel.R = avgPixel.R / (count + 1) * count + pixel.R / (double)(count + 1);
-                                            avgPixel.G = avgPixel.G / (count + 1) * count + pixel.G / (double)(count + 1);
-                                            avgPixel.B = avgPixel.B / (count + 1) * count + pixel.B / (double)(count + 1);
-                                            count++;
-                                        }
+                                        avgPixel = CalculateAveragePixel(finalReference, ii * _model.Options.SamplePlotSize, jj * _model.Options.SamplePlotSize, _model.Options.SamplePlotSize, _model.Options.SamplePlotSize);
                                     }
 
                                     var minDistImage = preProcessed.MinOrDefault(e => avgPixel.CalculateDistance(e.Item2));
 
-                                    using (var plotImage = new Bitmap(minDistImage.Item1))
+                                    thumbnail = RenderThumbnailBitmap(minDistImage.Item1);
+
+                                    if (_model.Options.AdjustRGB)
                                     {
-                                        switch (_model.Options.PlotProcessing)
-                                        {
-                                            case PlotImageProcessing.Stretch:
-                                                {
-                                                    using (var selectedPlot = ResizeBitmap(plotImage, _model.Options.FinalPlotSize, _model.Options.FinalPlotSize))
-                                                    {
-                                                        if (_model.Options.AdjustRGB)
-                                                        {
-                                                            var multiplier = avgPixel / minDistImage.Item2;
-
-                                                            for (var i = 0; i < selectedPlot.Width; i++)
-                                                            {
-                                                                for (var j = 0; j < selectedPlot.Height; j++)
-                                                                {
-                                                                    var currentPixel = ColorDouble.FromColor(selectedPlot.GetPixel(i, j));
-
-                                                                    selectedPlot.SetPixel(i, j, (currentPixel * multiplier).ToColor());
-                                                                }
-                                                            }
-                                                        }
-
-                                                        lock (outputBitmapLock)
-                                                        {
-                                                            DrawAtLocation(outputBitmap, selectedPlot, ii * _model.Options.FinalPlotSize, jj * _model.Options.FinalPlotSize);
-                                                            RenderingPercentage = progessCount / (double)totalPlots * 100;
-                                                            RenderingRemainTime = timer.Elapsed / progessCount * (totalPlots - progessCount);
-                                                            progessCount++;
-                                                        }
-                                                    }
-                                                    break;
-                                                }
-                                            case PlotImageProcessing.Crop:
-                                                {
-                                                    using (var cropedBitmap = CropSquareBitmapBitmap(plotImage))
-                                                    using (var selectedPlot = ResizeBitmap(cropedBitmap, _model.Options.FinalPlotSize, _model.Options.FinalPlotSize))
-                                                    {
-                                                        if (_model.Options.AdjustRGB)
-                                                        {
-                                                            var multiplier = avgPixel / minDistImage.Item2;
-
-                                                            for (var i = 0; i < selectedPlot.Width; i++)
-                                                            {
-                                                                for (var j = 0; j < selectedPlot.Height; j++)
-                                                                {
-                                                                    var currentPixel = ColorDouble.FromColor(selectedPlot.GetPixel(i, j));
-
-                                                                    selectedPlot.SetPixel(i, j, (currentPixel * multiplier).ToColor());
-                                                                }
-                                                            }
-                                                        }
-
-                                                        lock (outputBitmapLock)
-                                                        {
-                                                            DrawAtLocation(outputBitmap, selectedPlot, ii * _model.Options.FinalPlotSize, jj * _model.Options.FinalPlotSize);
-                                                            RenderingPercentage = progessCount / (double)totalPlots * 100;
-                                                            RenderingRemainTime = timer.Elapsed / progessCount * (totalPlots - progessCount);
-                                                            progessCount++; 
-                                                        }
-                                                    }
-                                                    break;
-                                                }
-                                            default:
-                                                {
-                                                    throw new NotImplementedException("Not implement plot processing method");
-                                                }
-                                        }
+                                        ColorAdjustImage(thumbnail, avgPixel, minDistImage.Item2);
                                     }
 
-                                    pool.Release();
-                                }));
+                                }
 
+                                if (!(_processCanceled || _exceptionThrown))
+                                {
+                                    lock (outputBitmapLock)
+                                    {
+                                        DrawAtLocation(outputBitmap, thumbnail, ii * _model.Options.FinalPlotSize, jj * _model.Options.FinalPlotSize);
+                                        RenderingPercentage = progessCount / (double)totalPlots * 100;
+                                        RenderingRemainTime = timer.Elapsed / progessCount * (totalPlots - progessCount);
+                                        progessCount++;
+                                    }
+                                }
                             }
-                        }
+                            catch (Exception e)
+                            {
+                                _exceptionThrown = true;
+                                _exceptionThrownMessage = e.Message;
+                            }
+                            finally
+                            {
+                                thumbnail?.Dispose();
+                            }
 
-                        pool.Release(_maxThreads);
+                            pool.Release();
+                        }));
 
-                        foreach (var task in tasks)
-                        {
-                            task.Wait();
-                        }
-
-                        outputBitmap.Save(_model.SavePath, ImageFormat.Jpeg);
                     }
-
                 }
 
+                pool.Release(_maxThreads);
+
+                foreach (var task in tasks)
+                {
+                    task.Wait();
+                }
+
+                if (!_processCanceled && !_exceptionThrown)
+                {
+                    outputBitmap.Save(_model.SavePath, ImageFormat.Jpeg);
+                }
+            }
+            catch (Exception e)
+            {
+                _exceptionThrown = true;
+                _exceptionThrownMessage = e.Message;
+            }
+            finally
+            {
+                initialReference?.Dispose();
+                finalReference?.Dispose();
+                outputBitmap?.Dispose();
+            }
+
+            if (_exceptionThrown)
+            {
+                MessageBox.Show(_exceptionThrownMessage);
+            }
+        }
+
+        private void CompileFinalImageLoadThumbnails()
+        {
+            var preProcessed =  PreProcessLoadThumbnails();
+
+            if (_processCanceled || _exceptionThrown)
+                return;
+
+
+            var pool = new Semaphore(0, _maxThreads);
+            var timer = new Stopwatch();
+            timer.Start();
+
+            var preProcessedReferenceLock = new object();
+            var finalReferenceLock = new object();
+            var outputBitmapLock = new object();
+
+            Bitmap initialReference = null;
+            Bitmap finalReference = null;
+            Bitmap outputBitmap = null;
+
+            try
+            {
+
+                initialReference = new Bitmap(_model.RecreateImage);
+                var referenceDimensions = new ImageDimensions(initialReference.Height, initialReference.Width).RoundUp(_model.Options.SamplePlotSize);
+
+                finalReference = ResizeBitmap(initialReference, referenceDimensions.Height, referenceDimensions.Width);
+                var widthPlots = referenceDimensions.Width / _model.Options.SamplePlotSize;
+                var heightPlots = referenceDimensions.Height / _model.Options.SamplePlotSize;
+
+                var totalPlots = widthPlots * heightPlots;
+                var progessCount = 1;
+
+                var finalWidth = widthPlots * _model.Options.FinalPlotSize;
+                var finalHeight = heightPlots * _model.Options.FinalPlotSize;
+
+                var tasks = new List<Task>();
+
+                outputBitmap = new Bitmap(finalWidth, finalHeight);
+                for (var i = 0; i < widthPlots; i++)
+                {
+                    for (var j = 0; j < heightPlots; j++)
+                    {
+                        var ii = i;
+                        var jj = j;
+                        tasks.Add(Task.Run(() =>
+                        {
+                            pool.WaitOne();
+                            Bitmap thumbnail = null;
+
+                            try
+                            {
+
+                                if (!(_processCanceled || _exceptionThrown))
+                                {
+
+                                    var avgPixel = new ColorDouble();
+                                    lock (finalReferenceLock)
+                                    {
+                                        avgPixel = CalculateAveragePixel(finalReference, ii * _model.Options.SamplePlotSize, jj * _model.Options.SamplePlotSize, _model.Options.SamplePlotSize, _model.Options.SamplePlotSize);
+                                    }
+
+                                    var minDistImage = preProcessed.MinOrDefault(e => avgPixel.CalculateDistance(e.Item2));
+
+                                    lock (preProcessedReferenceLock)
+                                    {
+                                        thumbnail = (Bitmap)minDistImage.Item1.Clone();
+                                    }
+
+                                    if (_model.Options.AdjustRGB)
+                                    {
+                                        ColorAdjustImage(thumbnail, avgPixel, minDistImage.Item2);
+                                    }
+
+                                }
+
+                                if (!(_processCanceled || _exceptionThrown))
+                                {
+                                    lock (outputBitmapLock)
+                                    {
+                                        DrawAtLocation(outputBitmap, thumbnail, ii * _model.Options.FinalPlotSize, jj * _model.Options.FinalPlotSize);
+                                        RenderingPercentage = progessCount / (double)totalPlots * 100;
+                                        RenderingRemainTime = timer.Elapsed / progessCount * (totalPlots - progessCount);
+                                        progessCount++;
+                                    }
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                _exceptionThrown = true;
+                                _exceptionThrownMessage = e.Message;
+                            }
+                            finally
+                            {
+                                thumbnail?.Dispose();
+                            }
+                            pool.Release();
+                        }));
+
+                    }
+                }
+
+                pool.Release(_maxThreads);
+
+                foreach (var task in tasks)
+                {
+                    task.Wait();
+                }
+
+                if (!_processCanceled && !_exceptionThrown)
+                {
+                    outputBitmap.Save(_model.SavePath, ImageFormat.Jpeg);
+                }
+            }
+            catch (Exception e)
+            {
+                _exceptionThrown = true;
+                _exceptionThrownMessage = e.Message;
+            }
+            finally
+            {
+                initialReference?.Dispose();
+                finalReference?.Dispose();
+                outputBitmap?.Dispose();
+                foreach (var tuple in preProcessed)
+                    tuple.Item1?.Dispose();
+            }
+
+            if (_exceptionThrown)
+            {
+                MessageBox.Show(_exceptionThrownMessage);
             }
         }
 
@@ -255,76 +383,163 @@ namespace PhotoMosaic.Windows
             var preProcessedList = new List<Tuple<string, ColorDouble>>();
             var timer = new Stopwatch();
             timer.Start();
-
             var progresscount = 1;
+
+            Bitmap thumbnail = null;
             var total = _model.BankImages.Count();
             foreach (var filePath in _model.BankImages)
             {
-                PreProcessingPercentage = progresscount / (double)total * 100;
-                PreProcessingRemainTime = timer.Elapsed / progresscount * (total - progresscount);
-                progresscount++;
-
-                using (var plotImage = new Bitmap(filePath))
+                try
                 {
-                    var preProcessColorDouble = new ColorDouble();
-
-                    switch (_model.Options.PlotProcessing)
+                    if (!(_processCanceled || _exceptionThrown))
                     {
-                        case PlotImageProcessing.Stretch:
-                            {
-                                using (var thumbnailBitmap = ResizeBitmap(plotImage, _model.Options.FinalPlotSize, _model.Options.FinalPlotSize))
-                                {
-                                    var count = 0;
+                        PreProcessingPercentage = progresscount / (double)total * 100;
+                        PreProcessingRemainTime = timer.Elapsed / progresscount * (total - progresscount);
+                        progresscount++;
 
-                                    for (var i = 0; i < thumbnailBitmap.Width; i++)
-                                    {
-                                        for (var j = 0; j < thumbnailBitmap.Height; j++)
-                                        {
-                                            var pixel = thumbnailBitmap.GetPixel(i, j);
+                        thumbnail = RenderThumbnailBitmap(filePath);
 
-                                            preProcessColorDouble.R = preProcessColorDouble.R / (count + 1) * count + pixel.R / (double)(count + 1);
-                                            preProcessColorDouble.G = preProcessColorDouble.G / (count + 1) * count + pixel.G / (double)(count + 1);
-                                            preProcessColorDouble.B = preProcessColorDouble.B / (count + 1) * count + pixel.B / (double)(count + 1);
+                        var preProcessColorDouble = CalculateAveragePixel(thumbnail);
 
-                                            count++;
-                                        }
-                                    }
-                                }
-                                break;
-                            }
-                        case PlotImageProcessing.Crop:
-                            {
-                                using (var cropedBitmap = CropSquareBitmapBitmap(plotImage))
-                                using (var thumbnailBitmap = ResizeBitmap(cropedBitmap, _model.Options.FinalPlotSize, _model.Options.FinalPlotSize))
-                                {
-                                    var count = 0;
-
-                                    for (var i = 0; i < thumbnailBitmap.Width; i++)
-                                    {
-                                        for (var j = 0; j < thumbnailBitmap.Height; j++)
-                                        {
-                                            var pixel = thumbnailBitmap.GetPixel(i, j);
-
-                                            preProcessColorDouble.R = preProcessColorDouble.R / (count + 1) * count + pixel.R / (double)(count + 1);
-                                            preProcessColorDouble.G = preProcessColorDouble.G / (count + 1) * count + pixel.G / (double)(count + 1);
-                                            preProcessColorDouble.B = preProcessColorDouble.B / (count + 1) * count + pixel.B / (double)(count + 1);
-
-                                            count++;
-                                        }
-                                    }
-                                }
-                                break;
-                            }
-                        default:
-                            {
-                                throw new NotImplementedException("Not implement plot processing method");
-                            }
+                        preProcessedList.Add(new Tuple<string, ColorDouble>(filePath, preProcessColorDouble));
                     }
-                    preProcessedList.Add(new Tuple<string, ColorDouble>( filePath, preProcessColorDouble));
+                }
+                catch (Exception e)
+                {
+                    _exceptionThrown = true;
+                    _exceptionThrownMessage = e.Message;
+                }
+                finally
+                {
+                    thumbnail?.Dispose();
                 }
             }
 
             return preProcessedList.ToArray();
+        }
+
+
+        private Tuple<Bitmap, ColorDouble>[] PreProcessLoadThumbnails()
+        {
+            var preProcessedList = new List<Tuple<Bitmap, ColorDouble>>();
+            var timer = new Stopwatch();
+            timer.Start();
+            var progresscount = 1;
+
+            Bitmap thumbnail = null;
+            var total = _model.BankImages.Count();
+            foreach (var filePath in _model.BankImages)
+            {
+                try
+                {
+                    if (!(_processCanceled || _exceptionThrown))
+                    {
+                        PreProcessingPercentage = progresscount / (double)total * 100;
+                        PreProcessingRemainTime = timer.Elapsed / progresscount * (total - progresscount);
+                        progresscount++;
+
+                        thumbnail = RenderThumbnailBitmap(filePath);
+
+                        var preProcessColorDouble = CalculateAveragePixel(thumbnail);
+
+                        preProcessedList.Add(new Tuple<Bitmap, ColorDouble>(thumbnail, preProcessColorDouble));
+                    }
+                }
+                catch (Exception e)
+                {
+                    _exceptionThrown = true;
+                    _exceptionThrownMessage = e.Message;
+                }
+                finally
+                {
+                    if (_processCanceled || _exceptionThrown)
+                    {
+                        thumbnail?.Dispose();
+                        foreach (var thumb in preProcessedList)
+                        {
+                            thumb?.Item1?.Dispose();
+                        }
+                    }
+                }
+            }
+
+            return preProcessedList.ToArray();
+        }
+
+        private Bitmap RenderThumbnailBitmap(string imagePath)
+        {
+            var initialImage = new Bitmap(imagePath);
+
+            Bitmap outputImage;
+
+            switch (_model.Options.PlotProcessing)
+            {
+                case PlotImageProcessing.Stretch:
+                    {
+                        outputImage = ResizeBitmap(initialImage, _model.Options.FinalPlotSize, _model.Options.FinalPlotSize);
+                        break;
+                    }
+                case PlotImageProcessing.Crop:
+                    {
+                        var croppedBitmap = CropSquareBitmapBitmap(initialImage);
+
+                        outputImage = ResizeBitmap(croppedBitmap, _model.Options.FinalPlotSize, _model.Options.FinalPlotSize);
+
+                        croppedBitmap.Dispose();
+                        break;
+                    }
+                default:
+                    {
+                        throw new NotImplementedException("Not implement plot processing method");
+                    }
+            }
+
+            initialImage.Dispose();
+
+            return outputImage;
+        }
+
+        private ColorDouble CalculateAveragePixel(Bitmap image)
+        {
+            return CalculateAveragePixel(image, 0, 0, image.Width, image.Height);
+        }
+
+        private ColorDouble CalculateAveragePixel(Bitmap image, int x, int y, int width, int height)
+        {
+            var outputPixel = new ColorDouble();
+
+            var count = 0;
+
+            for (var i = 0; i < width; i++)
+            {
+                for (var j = 0; j < height; j++)
+                {
+                    var pixel = image.GetPixel(x + i, y + j);
+
+                    outputPixel.R = outputPixel.R / (count + 1) * count + pixel.R / (double)(count + 1);
+                    outputPixel.G = outputPixel.G / (count + 1) * count + pixel.G / (double)(count + 1);
+                    outputPixel.B = outputPixel.B / (count + 1) * count + pixel.B / (double)(count + 1);
+
+                    count++;
+                }
+            }
+
+            return outputPixel;
+        }
+
+        private void ColorAdjustImage(Bitmap image, ColorDouble desiredAvg, ColorDouble currentAvg)
+        {
+            var multiplier = desiredAvg / currentAvg;
+
+            for (var i = 0; i < image.Width; i++)
+            {
+                for (var j = 0; j < image.Height; j++)
+                {
+                    var currentPixel = ColorDouble.FromColor(image.GetPixel(i, j));
+
+                    image.SetPixel(i, j, (currentPixel * multiplier).ToColor());
+                }
+            }
         }
 
         private void DrawAtLocation(Bitmap output, Bitmap reference, int x, int y)
@@ -360,7 +575,7 @@ namespace PhotoMosaic.Windows
 
             using (Graphics g = Graphics.FromImage(target))
             {
-                g.DrawImage(oldBitmap, new Rectangle(0,0, target.Width, target.Height),
+                g.DrawImage(oldBitmap, new Rectangle(0, 0, target.Width, target.Height),
                                  cropRect,
                                  GraphicsUnit.Pixel);
             }

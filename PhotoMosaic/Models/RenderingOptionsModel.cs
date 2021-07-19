@@ -13,12 +13,15 @@ namespace PhotoMosaic.Models
         public bool AdjustRGB { get; private set; }
         public int SamplePlotSize { get; private set; }
         public int FinalPlotSize { get; private set; }
-        public RenderingOptionsModel(int samplePlotSize, int finalPlotSize, bool adjustRGB, PlotImageProcessing plotProcessing)
+        public bool LoadThumbnails { get; private set; }
+
+        public RenderingOptionsModel(int samplePlotSize, int finalPlotSize, bool adjustRGB, PlotImageProcessing plotProcessing, bool loadThumbnails)
         {
             SamplePlotSize = samplePlotSize;
             FinalPlotSize = finalPlotSize;
             AdjustRGB = adjustRGB;
             PlotProcessing = plotProcessing;
+            LoadThumbnails = loadThumbnails;
         }
     }
 }

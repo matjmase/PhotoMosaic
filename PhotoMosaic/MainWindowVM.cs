@@ -25,6 +25,7 @@ namespace PhotoMosaic
 
         private PlotImageProcessing _plotProcessing;
         private bool _adjustImageRGB = true;
+        private bool _loadThumbnails = true;
 
         private string _outputFilePath;
 
@@ -130,6 +131,19 @@ namespace PhotoMosaic
                 if (value != _adjustImageRGB)
                 {
                     _adjustImageRGB = value;
+                    NotifyPropertyChanged();
+                }
+            }
+        }
+
+        public bool LoadThumbnails
+        {
+            get { return _loadThumbnails; }
+            set
+            {
+                if (value != _loadThumbnails)
+                {
+                    _loadThumbnails = value;
                     NotifyPropertyChanged();
                 }
             }
@@ -254,7 +268,7 @@ namespace PhotoMosaic
             if (!ProcessEnabled)
                 return;
 
-            var model = new RenderingModel(RecreateImagePath, BankImagePaths, new RenderingOptionsModel(SamplePlotDimensions, ReplacementPlotDimensions, AdjustImageRGB, PlotProcessing), OutputFilePath);
+            var model = new RenderingModel(RecreateImagePath, BankImagePaths, new RenderingOptionsModel(SamplePlotDimensions, ReplacementPlotDimensions, AdjustImageRGB, PlotProcessing, LoadThumbnails), OutputFilePath);
 
             var render = new RenderProcessWindow(model);
             render.ShowDialog();
