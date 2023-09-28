@@ -6,4 +6,4 @@
 
 ## They are composed of smaller images.
 
-<img src="https://github.com/matjmase/PhotoMosaic/blob/main/Screenshots/mosaic.jpeg" width="500" />
+<img src="https://github.com/matjmase/PhotoMosaic/blob/main/Screenshots/mosaic.jpeg" width="600" />
