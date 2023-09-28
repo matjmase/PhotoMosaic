@@ -134,7 +134,7 @@ namespace PhotoMosaic.Windows
         {
             CurrentFolderPaths.Clear();
 
-            var files = Directory.GetFiles(CurrentDirectory).Where(e => e.EndsWith(".jpg") || e.EndsWith(".jfif") || e.EndsWith(".jpeg") || e.EndsWith(".png"));
+            var files = Directory.GetFiles(CurrentDirectory).Select(e => e.ToLower()).Where(e => e.EndsWith(".jpg") || e.EndsWith(".jfif") || e.EndsWith(".jpeg") || e.EndsWith(".png"));
 
             foreach (var file in files)
             {

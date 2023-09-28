@@ -1,0 +1,1 @@
+# Photo Mosaic generating application
